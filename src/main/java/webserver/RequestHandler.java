@@ -1,10 +1,15 @@
 package webserver;
 
+import db.MemoryUserRepository;
+import http.util.HttpRequestUtils;
+import model.User;
+
 import java.io.*;
 import java.net.Socket;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.util.Map;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
@@ -30,6 +35,11 @@ public class RequestHandler implements Runnable {
             String method = tokens[0];
             String url = tokens[1];
 
+            if (url.startsWith("/user/signup")) {
+                handleSignUp(url, dos);
+                return;
+            }
+
             if (url.equals("/")) {
                 url = "/index.html";
             }
@@ -44,6 +54,37 @@ public class RequestHandler implements Runnable {
                 response404Header(dos);
             }
 
+        } catch (IOException e) {
+            log.log(Level.SEVERE, e.getMessage());
+        }
+    }
+
+    private void handleSignUp(String url, DataOutputStream dos) throws IOException {
+        int queryIndex = url.indexOf("?");
+        if (queryIndex == -1) {
+            return;
+        }
+
+        String queryString = url.substring(queryIndex + 1);
+        Map<String, String> params = HttpRequestUtils.parseQueryParameter(queryString);
+
+        String userId = params.get("userId");
+        String password = params.get("password");
+        String name = params.get("name");
+        String email = params.get("email");
+
+        User user = new User(userId, password, name, email);
+        MemoryUserRepository.getInstance().addUser(user);
+
+        response302Header(dos, "/index.html");
+    }
+
+    private void response302Header(DataOutputStream dos, String path) {
+        try {
+            dos.writeBytes("HTTP/1.1 302 Found\r\n");
+            dos.writeBytes("Location: " + path + "\r\n");
+            dos.writeBytes("Content-Type: text/html;charset=utf-8\r\n");
+            dos.writeBytes("\r\n");
         } catch (IOException e) {
             log.log(Level.SEVERE, e.getMessage());
         }
