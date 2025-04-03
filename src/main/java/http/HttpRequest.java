@@ -74,4 +74,11 @@ public class HttpRequest {
     public Map<String, String> getBodyParams() {
         return HttpRequestUtils.parseQueryParameter(body);
     }
+
+    public Map<String, String> getQueryParams() {
+        int queryIndex = url.indexOf("?");
+        if (queryIndex == -1) return new HashMap<>();
+        String queryString = url.substring(queryIndex + 1);
+        return HttpRequestUtils.parseQueryParameter(queryString);
+    }
 }

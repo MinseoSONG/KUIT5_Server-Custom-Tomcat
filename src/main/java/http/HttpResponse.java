@@ -31,10 +31,18 @@ public class HttpResponse {
         writeBody(body);
     }
 
+    public void close() throws IOException{
+        dos.flush();
+        dos.close();
+    }
+
     public void redirect(String path) throws IOException {
         addHeader(HttpHeader.LOCATION.getName(), path);
+        addHeader(HttpHeader.CONTENT_LENGTH.getName(), "0");
+        addHeader("Connection", "close");
         writeStartLine(HttpStatus.FOUND);
         writeHeaders();
+        close();
     }
 
     public void addHeader(String key, String value) {
