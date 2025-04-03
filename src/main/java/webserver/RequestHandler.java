@@ -35,6 +35,11 @@ public class RequestHandler implements Runnable {
             String method = tokens[0];
             String url = tokens[1];
 
+            if (method.equals("POST") && url.equals("/user/login")){
+                handleLogin(br, dos);
+                return;
+            }
+
             if (method.equals("POST") && url.equals("/user/signup")) {
                 handlePostSignUp(br, dos);
                 return;
@@ -61,6 +66,35 @@ public class RequestHandler implements Runnable {
 
         } catch (IOException e) {
             log.log(Level.SEVERE, e.getMessage());
+        }
+    }
+
+    private void handleLogin(BufferedReader br, DataOutputStream dos) throws IOException {
+        int requestContentLength = 0;
+
+        while (true) {
+            final String line = br.readLine();
+            if (line.equals("")) {
+                break;
+            }
+
+            if (line.startsWith("Content-Length")) {
+                requestContentLength = Integer.parseInt(line.split(": ")[1]);
+            }
+        }
+
+        String body = http.util.IOUtils.readData(br, requestContentLength);
+        Map<String, String> params = HttpRequestUtils.parseQueryParameter(body);
+
+        String userId = params.get("userId");
+        String password = params.get("password");
+
+        User user = MemoryUserRepository.getInstance().findUserById(userId);
+
+        if (user != null && user.getPassword().equals(password)) {
+            response302WithLoginCookie(dos, "/index.html");
+        } else {
+            response302Header(dos, "/user/login_failed.html");
         }
     }
 
@@ -153,5 +187,17 @@ public class RequestHandler implements Runnable {
             log.log(Level.SEVERE, e.getMessage());
         }
     }
+
+    private void response302WithLoginCookie(DataOutputStream dos, String path) {
+        try {
+            dos.writeBytes("HTTP/1.1 302 Found\r\n");
+            dos.writeBytes("Location: " + path + "\r\n");
+            dos.writeBytes("Set-Cookie: logined=true\r\n");
+            dos.writeBytes("\r\n");
+        } catch (IOException e) {
+            log.log(Level.SEVERE, e.getMessage());
+        }
+    }
+
 
 }
