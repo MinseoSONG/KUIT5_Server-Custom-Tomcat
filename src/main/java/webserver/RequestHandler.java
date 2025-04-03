@@ -35,6 +35,11 @@ public class RequestHandler implements Runnable {
             String method = tokens[0];
             String url = tokens[1];
 
+            if (method.equals("POST") && url.equals("/user/signup")) {
+                handlePostSignUp(br, dos);
+                return;
+            }
+
             if (url.startsWith("/user/signup")) {
                 handleSignUp(url, dos);
                 return;
@@ -58,6 +63,36 @@ public class RequestHandler implements Runnable {
             log.log(Level.SEVERE, e.getMessage());
         }
     }
+
+    private void handlePostSignUp(BufferedReader br, DataOutputStream dos) throws IOException {
+        int requestContentLength = 0;
+
+        while (true) {
+            final String line = br.readLine();
+            if (line.equals("")) {
+                break;
+            }
+
+            if (line.startsWith("Content-Length")) {
+                requestContentLength = Integer.parseInt(line.split(": ")[1]);
+            }
+        }
+
+        String body = http.util.IOUtils.readData(br, requestContentLength);
+
+        Map<String, String> params = HttpRequestUtils.parseQueryParameter(body);
+
+        String userId = params.get("userId");
+        String password = params.get("password");
+        String name = params.get("name");
+        String email = params.get("email");
+
+        User user = new User(userId, password, name, email);
+        MemoryUserRepository.getInstance().addUser(user);
+
+        response302Header(dos, "/index.html");
+    }
+
 
     private void handleSignUp(String url, DataOutputStream dos) throws IOException {
         int queryIndex = url.indexOf("?");
