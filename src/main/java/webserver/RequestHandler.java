@@ -2,15 +2,13 @@ package webserver;
 
 import db.MemoryUserRepository;
 import http.HttpRequest;
+import http.HttpResponse;
 import http.util.HttpRequestUtils;
 import model.User;
 import type.*;
 
 import java.io.*;
 import java.net.Socket;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.util.Map;
 import java.util.logging.Level;
 import java.util.logging.Logger;
@@ -28,40 +26,32 @@ public class RequestHandler implements Runnable {
         log.log(Level.INFO, "New Client Connect! Connected IP : " + connection.getInetAddress() + ", Port : " + connection.getPort());
         try (InputStream in = connection.getInputStream(); OutputStream out = connection.getOutputStream()) {
             BufferedReader br = new BufferedReader(new InputStreamReader(in));
-            DataOutputStream dos = new DataOutputStream(out);
-
             HttpRequest request = HttpRequest.from(br);
+            HttpResponse response = new HttpResponse(out);
+
             String url = request.getUrl();
 
             if (url.equals(UrlPath.USER_LIST.getPath())) {
                 if (isLogined(request)) {
-                    Path filePath = Paths.get("./webapp/user/list.html");
-                    if (Files.exists(filePath)) {
-                        byte[] body = Files.readAllBytes(filePath);
-                        String contentType = getContentType(url);
-                        response200Header(dos, body.length, contentType);
-                        responseBody(dos, body);
-                    } else {
-                        response404Header(dos);
-                    }
+                    response.forward("/user/list.html");
                 } else {
-                    response302Header(dos, UrlPath.LOGIN_PAGE.getPath());
+                    response.redirect(UrlPath.LOGIN_PAGE.getPath());
                 }
                 return;
             }
 
             if (request.getMethod() == HttpMethod.POST && url.equals(UrlPath.LOGIN.getPath())) {
-                handleLogin(request, dos);
+                handleLogin(request, response);
                 return;
             }
 
             if (request.getMethod() == HttpMethod.POST && url.equals(UrlPath.SIGNUP.getPath())) {
-                handlePostSignUp(request, dos);
+                handlePostSignUp(request, response);
                 return;
             }
 
             if (url.startsWith(UrlPath.SIGNUP.getPath())) {
-                handleSignUp(request, dos);
+                handleSignUp(request, response);
                 return;
             }
 
@@ -69,29 +59,11 @@ public class RequestHandler implements Runnable {
                 url = UrlPath.INDEX.getPath();
             }
 
-            Path filePath = Paths.get("./webapp" + url);
-
-            if (Files.exists(filePath)) {
-                byte[] body = Files.readAllBytes(filePath);
-                String contentType = getContentType(url);
-                response200Header(dos, body.length, contentType);
-                responseBody(dos, body);
-            } else {
-                response404Header(dos);
-            }
+            response.forward(url);
 
         } catch (IOException e) {
             log.log(Level.SEVERE, e.getMessage());
         }
-    }
-
-    private String getContentType(String url) {
-        if (url.endsWith(".css")) return "text/css";
-        if (url.endsWith(".js")) return "application/javascript";
-        if (url.endsWith(".png")) return "image/png";
-        if (url.endsWith(".jpg") || url.endsWith(".jpeg")) return "image/jpeg";
-        if (url.endsWith(".svg")) return "image/svg+xml";
-        return "text/html";
     }
 
     private boolean isLogined(HttpRequest request) {
@@ -108,7 +80,7 @@ public class RequestHandler implements Runnable {
         return false;
     }
 
-    private void handleLogin(HttpRequest request, DataOutputStream dos) throws IOException {
+    private void handleLogin(HttpRequest request, HttpResponse response) throws IOException {
         Map<String, String> params = request.getBodyParams();
         String userId = params.get(UserQueryKey.USER_ID.getKey());
         String password = params.get(UserQueryKey.PASSWORD.getKey());
@@ -116,13 +88,14 @@ public class RequestHandler implements Runnable {
         User user = MemoryUserRepository.getInstance().findUserById(userId);
 
         if (user != null && user.getPassword().equals(password)) {
-            response302WithLoginCookie(dos);
+            response.addHeader(HttpHeader.SET_COOKIE.getName(), "logined=true");
+            response.redirect(UrlPath.INDEX.getPath());
         } else {
-            response302Header(dos, UrlPath.LOGIN_FAILED.getPath());
+            response.redirect(UrlPath.LOGIN_FAILED.getPath());
         }
     }
 
-    private void handlePostSignUp(HttpRequest request, DataOutputStream dos) throws IOException {
+    private void handlePostSignUp(HttpRequest request, HttpResponse response) throws IOException {
         Map<String, String> params = request.getBodyParams();
 
         String userId = params.get(UserQueryKey.USER_ID.getKey());
@@ -133,11 +106,11 @@ public class RequestHandler implements Runnable {
         User user = new User(userId, password, name, email);
         MemoryUserRepository.getInstance().addUser(user);
 
-        response302Header(dos, UrlPath.INDEX.getPath());
+        response.redirect(UrlPath.INDEX.getPath());
     }
 
 
-    private void handleSignUp(HttpRequest request, DataOutputStream dos) throws IOException {
+    private void handleSignUp(HttpRequest request, HttpResponse response) throws IOException {
         String url = request.getUrl();
         int queryIndex = url.indexOf("?");
         if (queryIndex == -1) return;
@@ -153,7 +126,7 @@ public class RequestHandler implements Runnable {
         User user = new User(userId, password, name, email);
         MemoryUserRepository.getInstance().addUser(user);
 
-        response302Header(dos, UrlPath.INDEX.getPath());
+        response.redirect(UrlPath.INDEX.getPath());
     }
 
     private void response302Header(DataOutputStream dos, String path) {
