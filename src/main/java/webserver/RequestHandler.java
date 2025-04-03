@@ -38,7 +38,7 @@ public class RequestHandler implements Runnable {
 
             Map<String, String> headers = new HashMap<>();
             String headerLine;
-            while (!(headerLine = br.readLine()).equals("")) {
+            while (!(headerLine = br.readLine()).isEmpty()) {
                 int index = headerLine.indexOf(":");
                 if (index != -1) {
                     String key = headerLine.substring(0, index).trim();
@@ -52,7 +52,8 @@ public class RequestHandler implements Runnable {
                     Path filePath = Paths.get("./webapp/user/list.html");
                     if (Files.exists(filePath)) {
                         byte[] body = Files.readAllBytes(filePath);
-                        response200Header(dos, body.length);
+                        String contentType = getContentType(url);
+                        response200Header(dos, body.length, contentType);
                         responseBody(dos, body);
                     } else {
                         response404Header(dos);
@@ -86,7 +87,8 @@ public class RequestHandler implements Runnable {
 
             if (Files.exists(filePath)) {
                 byte[] body = Files.readAllBytes(filePath);
-                response200Header(dos, body.length);
+                String contentType = getContentType(url);
+                response200Header(dos, body.length, contentType);
                 responseBody(dos, body);
             } else {
                 response404Header(dos);
@@ -95,6 +97,21 @@ public class RequestHandler implements Runnable {
         } catch (IOException e) {
             log.log(Level.SEVERE, e.getMessage());
         }
+    }
+
+    private String getContentType(String url) {
+        if (url.endsWith(".css")) {
+            return "text/css";
+        } else if (url.endsWith(".js")) {
+            return "application/javascript";
+        } else if (url.endsWith(".png")) {
+            return "image/png";
+        } else if (url.endsWith(".jpg") || url.endsWith(".jpeg")) {
+            return "image/jpeg";
+        } else if (url.endsWith(".svg")) {
+            return "image/svg+xml";
+        }
+        return "text/html";
     }
 
     private boolean isLogined(Map<String, String> headers) {
@@ -123,7 +140,7 @@ public class RequestHandler implements Runnable {
         User user = MemoryUserRepository.getInstance().findUserById(userId);
 
         if (user != null && user.getPassword().equals(password)) {
-            response302WithLoginCookie(dos, "/index.html");
+            response302WithLoginCookie(dos);
         } else {
             response302Header(dos, "/user/login_failed.html");
         }
@@ -188,10 +205,10 @@ public class RequestHandler implements Runnable {
         }
     }
 
-    private void response200Header(DataOutputStream dos, int lengthOfBodyContent) {
+    private void response200Header(DataOutputStream dos, int lengthOfBodyContent, String contentType) {
         try {
             dos.writeBytes("HTTP/1.1 200 OK \r\n");
-            dos.writeBytes("Content-Type: text/html;charset=utf-8\r\n");
+            dos.writeBytes("Content-Type: " + contentType + ";charset=utf-8\r\n");
             dos.writeBytes("Content-Length: " + lengthOfBodyContent + "\r\n");
             dos.writeBytes("\r\n");
         } catch (IOException e) {
@@ -208,10 +225,10 @@ public class RequestHandler implements Runnable {
         }
     }
 
-    private void response302WithLoginCookie(DataOutputStream dos, String path) {
+    private void response302WithLoginCookie(DataOutputStream dos) {
         try {
             dos.writeBytes("HTTP/1.1 302 Found\r\n");
-            dos.writeBytes("Location: " + path + "\r\n");
+            dos.writeBytes("Location: " + "/index.html" + "\r\n");
             dos.writeBytes("Set-Cookie: logined=true\r\n");
             dos.writeBytes("\r\n");
         } catch (IOException e) {
