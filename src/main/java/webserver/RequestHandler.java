@@ -9,6 +9,7 @@ import java.net.Socket;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.util.HashMap;
 import java.util.Map;
 import java.util.logging.Level;
 import java.util.logging.Logger;
@@ -35,13 +36,40 @@ public class RequestHandler implements Runnable {
             String method = tokens[0];
             String url = tokens[1];
 
-            if (method.equals("POST") && url.equals("/user/login")){
-                handleLogin(br, dos);
+            Map<String, String> headers = new HashMap<>();
+            String headerLine;
+            while (!(headerLine = br.readLine()).equals("")) {
+                int index = headerLine.indexOf(":");
+                if (index != -1) {
+                    String key = headerLine.substring(0, index).trim();
+                    String value = headerLine.substring(index + 1).trim();
+                    headers.put(key, value);
+                }
+            }
+
+            if (url.equals("/user/userList")) {
+                if (isLogined(headers)) {
+                    Path filePath = Paths.get("./webapp/user/list.html");
+                    if (Files.exists(filePath)) {
+                        byte[] body = Files.readAllBytes(filePath);
+                        response200Header(dos, body.length);
+                        responseBody(dos, body);
+                    } else {
+                        response404Header(dos);
+                    }
+                } else {
+                    response302Header(dos, "/user/login.html");
+                }
+                return;
+            }
+
+            if (method.equals("POST") && url.equals("/user/login")) {
+                handleLogin(br, headers, dos);
                 return;
             }
 
             if (method.equals("POST") && url.equals("/user/signup")) {
-                handlePostSignUp(br, dos);
+                handlePostSignUp(br, headers, dos);
                 return;
             }
 
@@ -69,19 +97,22 @@ public class RequestHandler implements Runnable {
         }
     }
 
-    private void handleLogin(BufferedReader br, DataOutputStream dos) throws IOException {
-        int requestContentLength = 0;
+    private boolean isLogined(Map<String, String> headers) {
+        String cookieHeader = headers.get("Cookie");
+        if (cookieHeader == null) return false;
 
-        while (true) {
-            final String line = br.readLine();
-            if (line.equals("")) {
-                break;
-            }
-
-            if (line.startsWith("Content-Length")) {
-                requestContentLength = Integer.parseInt(line.split(": ")[1]);
+        String[] cookies = cookieHeader.split(";");
+        for (String cookie : cookies) {
+            String[] pair = cookie.trim().split("=");
+            if (pair.length == 2 && pair[0].equals("logined") && pair[1].equals("true")) {
+                return true;
             }
         }
+        return false;
+    }
+
+    private void handleLogin(BufferedReader br, Map<String, String> headers, DataOutputStream dos) throws IOException {
+        int requestContentLength = Integer.parseInt(headers.getOrDefault("Content-Length", "0"));
 
         String body = http.util.IOUtils.readData(br, requestContentLength);
         Map<String, String> params = HttpRequestUtils.parseQueryParameter(body);
@@ -98,19 +129,8 @@ public class RequestHandler implements Runnable {
         }
     }
 
-    private void handlePostSignUp(BufferedReader br, DataOutputStream dos) throws IOException {
-        int requestContentLength = 0;
-
-        while (true) {
-            final String line = br.readLine();
-            if (line.equals("")) {
-                break;
-            }
-
-            if (line.startsWith("Content-Length")) {
-                requestContentLength = Integer.parseInt(line.split(": ")[1]);
-            }
-        }
+    private void handlePostSignUp(BufferedReader br, Map<String, String> headers, DataOutputStream dos) throws IOException {
+        int requestContentLength = Integer.parseInt(headers.getOrDefault("Content-Length", "0"));
 
         String body = http.util.IOUtils.readData(br, requestContentLength);
 
