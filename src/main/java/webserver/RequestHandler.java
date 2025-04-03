@@ -1,7 +1,5 @@
 package webserver;
 
-import controller.Controller;
-import controller.ControllerRouter;
 import http.HttpRequest;
 import http.HttpResponse;
 
@@ -16,7 +14,6 @@ import java.util.logging.Logger;
 public class RequestHandler implements Runnable {
     Socket connection;
     private static final Logger log = Logger.getLogger(RequestHandler.class.getName());
-    private final ControllerRouter router = new ControllerRouter();
 
     public RequestHandler(Socket connection) {
         this.connection = connection;
@@ -30,11 +27,8 @@ public class RequestHandler implements Runnable {
             HttpRequest request = HttpRequest.from(br);
             HttpResponse response = new HttpResponse(out);
 
-            String url = request.getUrl();
-
-            Controller controller = router.getController(url);
-            controller.execute(request, response);
-            response.close();
+            RequestMapper requestMapper = new RequestMapper(request, response);
+            requestMapper.proceed();
         } catch (Exception e) {
             log.log(Level.SEVERE, e.getMessage());
         }
